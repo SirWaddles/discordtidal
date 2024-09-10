@@ -1,3 +1,7 @@
+## Fork Details
+
+Original readme is below, but I've tried to recreate the "safer" version that's mentioned below. I'm assuming the application got removed because of the game asset stuff, but I kind of like the TIDAL logo instead.
+
 # discordtidal
 
 > ### :warning: USE AT YOUR OWN RISK!
