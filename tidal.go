@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/hugolgst/rich-go/client"
-	"github.com/unickorn/discordtidal/discord"
 	"github.com/unickorn/discordtidal/log"
 	"github.com/unickorn/discordtidal/rpc"
 	"github.com/unickorn/discordtidal/song"
@@ -29,12 +28,9 @@ var (
 
 // Start starts the Discord RPC update loop.
 func Start() {
-	discord.LoadConfig()
 	defer log.Log().Sync()
 	rpc.Init()
 	defer rpc.Logout()
-	discord.OpenDb()
-	discord.Sync()
 
 	for {
 		getSong()
@@ -70,24 +66,9 @@ func Start() {
 					Track:     t,
 				}
 
-				largeImage := song.Current.Track.Album.StringId()
+				sleepTime = time.Second
 
 				trackUrl := fmt.Sprintf("https://listen.tidal.com/album/%d/track/%d", song.Current.Track.Album.ID , song.Current.Track.Id)
-
-				// if song changed, update cover and name
-				if songChanged {
-					log.Log().Debugln("---- [TRIGGER] SONG CHANGE")
-					coverUpdateTime = 0
-					if asset := discord.FetchAsset(song.Current.Track.Album); asset == nil {
-						// no asset on discord -> wait for cover and set to tidal
-						coverUpdateTime = 30
-						largeImage = "tidal"
-						sleepTime = time.Second
-					}
-					discord.UpdateName(song.Current.Track.Title)
-					// relog to update name instantly
-					rpc.Relog()
-				}
 
 				log.Log().Infoln("[TRIGGER] BUTTON URL CHANGED TO:", trackUrl)
 
@@ -95,9 +76,9 @@ func Start() {
 				// set activity
 				end := time.Unix(int64(song.Current.Track.Duration)+song.Current.StartTime+int64(song.Current.PausedTime), 0)
 				err := client.SetActivity(client.Activity{
-					Details:    "by " + song.Current.Track.FormatArtists(),
-					State:      "on " + song.Current.Track.Album.Title,
-					LargeImage: largeImage,
+					Details:    song.Current.Track.Title,
+					State:      "by " + song.Current.Track.FormatArtists(),
+					LargeImage: "tidal",
 					LargeText:  song.Current.Track.Album.Title,
 					Timestamps: &client.Timestamps{
 						Start: &now,
@@ -115,17 +96,6 @@ func Start() {
 				}
 			}
 
-			// tick cover update time
-			if coverUpdateTime > 0 {
-				coverUpdateTime--
-				log.Log().Debugln("Cover update time:", coverUpdateTime)
-				if coverUpdateTime == 0 {
-					log.Log().Infoln("[TRIGGER] COVER UPDATE")
-					coverUpdateTime = -1 // -1 is magic number for "attempt now!"
-					// we don't use 0 because we don't want to update cover every second
-				}
-			}
-
 			// used to be paused || needs cover update
 			if song.Current.Paused || coverUpdateTime == -1 {
 				// not paused obviously
@@ -133,28 +103,14 @@ func Start() {
 
 				log.Log().Debugln("[TRIGGER] COVER UPDATE/UNPAUSE")
 
-				// update cover
-				largeImage := song.Current.Track.Album.StringId()
 				trackUrl := fmt.Sprintf("https://listen.tidal.com/album/%d/track/%d", song.Current.Track.Album.ID , song.Current.Track.Id)
-
-				discord.Sync()
-				// it probably still won't exist because stupid discord cache hasn't updated yet
-				a := discord.FetchAsset(song.Current.Track.Album)
-				if a == nil {
-					coverUpdateTime = 20 // reset timer
-					largeImage = "tidal"
-					sleepTime = time.Second
-				} else {
-					coverUpdateTime = 0
-					sleepTime = time.Second * 5
-				}
 
 				start := time.Unix(song.Current.StartTime, 0)
 				end := time.Unix(int64(uint64(song.Current.Track.Duration)+uint64(song.Current.StartTime)+song.Current.PausedTime), 0)
 				err := client.SetActivity(client.Activity{
-					Details:    "by " + song.Current.Track.FormatArtists(),
-					State:      "on " + song.Current.Track.Album.Title,
-					LargeImage: largeImage,
+					Details:    song.Current.Track.Title,
+					State:      "by " + song.Current.Track.FormatArtists(),
+					LargeImage: "tidal",
 					LargeText:  song.Current.Track.Album.Title,
 					Timestamps: &client.Timestamps{
 						Start: &start,
@@ -179,24 +135,15 @@ func Start() {
 			log.Log().Debugln("Status: PAUSED")
 			song.Current.PausedTime += uint64(sleepTime / time.Second)
 
-			// update cover
-			largeImage := song.Current.Track.Album.StringId()
-
 			trackUrl := fmt.Sprintf("https://listen.tidal.com/album/%d/track/%d", song.Current.Track.Album.ID , song.Current.Track.Id)
-
-			// it probably still won't exist because stupid discord cache hasn't updated yet
-			a := discord.FetchAsset(song.Current.Track.Album)
-			if a == nil {
-				largeImage = "tidal"
-			}
 
 			sleepTime = time.Second * 2
 			if !song.Current.Paused {
 				song.Current.Paused = true
 				err := client.SetActivity(client.Activity{
-					Details:    "by " + song.Current.Track.FormatArtists(),
-					State:      "on " + song.Current.Track.Album.Title,
-					LargeImage: largeImage,
+					Details:    song.Current.Track.Title,
+					State:      "by " + song.Current.Track.FormatArtists(),
+					LargeImage: "tidal",
 					LargeText:  song.Current.Track.Album.Title,
 					Buttons: []*client.Button{
 						{
